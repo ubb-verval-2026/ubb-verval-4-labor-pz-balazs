@@ -248,6 +248,23 @@ public class PersonPageTests
         });
 
         flightRows.Count.Should().BeGreaterThanOrEqualTo(3);
+
+        foreach (var row in flightRows)
+        {
+            var rowCells = row.FindElements(By.TagName("td"));
+
+            var rowPrice = double.Parse(rowCells.Last().Text[1..]);
+            if (rowPrice < maxPrice)
+            {
+                var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                var screenshotPath = Path.Combine(desktopPath, "yippee.png");
+
+                var screenshot = ((ITakesScreenshot)driver).GetScreenshot();
+                screenshot.SaveAsFile(screenshotPath);
+
+                break;
+            }
+        }
     }
 
     private bool IsElementPresent(By by)
