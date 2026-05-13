@@ -8,6 +8,10 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
 
+using System.Globalization;
+using System.IO;
+using System.Linq;
+
 namespace DatesAndStuff.Web.Tests;
 
 [TestFixture]
@@ -97,29 +101,172 @@ public class PersonPageTests
         Assert.That(verificationErrors.ToString(), Is.EqualTo(""));
     }
 
-    [Test]
-    public void Person_SalaryIncrease_ShouldIncrease()
+    [TestCase(5)]
+    [TestCase(10)]
+    [TestCase(20)]
+    [TestCase(0)]
+    public void Person_SalaryIncrease_ShouldIncrease(double percentage)
     {
         // Arrange
         driver.Navigate().GoToUrl(BaseURL);
         driver.FindElement(By.XPath("//*[@data-test='PersonPageNavigation']")).Click();
 
         var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException), typeof(NoSuchElementException));
 
-        var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
-        input.Clear();
-        input.SendKeys("5");
+        //var salaryLabelBefore = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
+        //var salaryBeforeSubmission = double.Parse(salaryLabelBefore.Text);
+        var salaryBeforeSubmissionText = wait.Until(driver =>
+        {
+            var salaryLabelBefore = driver.FindElement(By.XPath("//*[@data-test='DisplayedSalary']"));
+            if (salaryLabelBefore.Displayed)
+            {
+                return salaryLabelBefore.Text;
+            }
+            return null;
+        });
+
+        var salaryBeforeSubmission = double.Parse(salaryBeforeSubmissionText);
+        var expectedSalary = salaryBeforeSubmission + salaryBeforeSubmission * percentage / 100;
+
+        //var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
+        //input.Clear();
+        //input.SendKeys(percentage.ToString());
+        wait.Until(driver =>
+        {
+            var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
+            if (input.Displayed && input.Enabled)
+            {
+                input.Clear();
+                input.SendKeys(percentage.ToString());
+                return true;
+            }
+            return false;
+        });
 
         // Act
-        var submitButton = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']")));
-        submitButton.Click();
-
+        //var submitButton = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']")));
+        //submitButton.Click();
+        wait.Until(ExpectedConditions.ElementToBeClickable(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']"))).Click();
 
         // Assert
-        var salaryLabel = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
-        var salaryAfterSubmission = double.Parse(salaryLabel.Text);
-        salaryAfterSubmission.Should().BeApproximately(5250, 0.001);
+        //var salaryLabel = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
+        //var salaryAfterSubmission = double.Parse(salaryLabel.Text);
+        var salaryAfterSubmissionText = wait.Until(driver =>
+        {
+            var salaryLabel = driver.FindElement(By.XPath("//*[@data-test='DisplayedSalary']"));
+            if (salaryLabel.Displayed)
+            {
+                return salaryLabel.Text;
+            }
+            return null;
+        });
+
+        var salaryAfterSubmission = double.Parse(salaryAfterSubmissionText);
+        salaryAfterSubmission.Should().BeApproximately(expectedSalary, 0.001);
     }
+
+    [TestCase(-10)]
+    [TestCase(-15)]
+    [TestCase(-50)]
+    public void Person_SalaryIncrease_LessThanMinusTen_ShouldShowValidationErrors(double percentage)
+    {
+        // Arrange
+        driver.Navigate().GoToUrl(BaseURL);
+        driver.FindElement(By.XPath("//*[@data-test='PersonPageNavigation']")).Click();
+
+        var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException), typeof(NoSuchElementException));
+
+        wait.Until(driver =>
+        {
+            var input = driver.FindElement(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']"));
+            if (input.Displayed && input.Enabled)
+            {
+                input.Clear();
+                input.SendKeys(percentage.ToString());
+                return true;
+            }
+            return false;
+        });
+
+        // Act
+        wait.Until(ExpectedConditions.ElementToBeClickable(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']"))).Click();
+
+        // Assert
+        var errorTop = wait.Until(driver =>
+        {
+            var element = driver.FindElement(By.CssSelector("ul.validation-errors li.validation-message"));
+
+            return element.Displayed;
+        });
+        var errorUnder = wait.Until(driver =>
+        {
+            var element = driver.FindElement(By.CssSelector("div.validation-message"));
+
+            return element.Displayed;
+        });
+
+        errorTop.Should().BeTrue();
+        errorUnder.Should().BeTrue();
+    }
+
+    [Test]
+    public void BlazeDemo_MexicoToDublin_ShouldHaveAtLeastThreeFlights()
+    {
+        // Arrange
+        double maxPrice = 230d;
+
+        driver.Navigate().GoToUrl("https://blazedemo.com");
+
+        var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException), typeof(NoSuchElementException));
+
+        wait.Until(driver =>
+        {
+            var selectFrom = driver.FindElement(By.Name("fromPort"));
+            var selectTo = driver.FindElement(By.Name("toPort"));
+
+            if (selectFrom.Displayed && selectFrom.Enabled && selectTo.Displayed && selectTo.Enabled)
+            {
+                selectFrom.SendKeys("Mexico City");
+                selectTo.SendKeys("Dublin");
+                return true;
+            }
+            return false;
+        });
+
+        // Act
+        wait.Until(ExpectedConditions.ElementToBeClickable(By.CssSelector("input[type='submit']"))).Click();
+
+        // Assert
+        var flightRows = wait.Until(driver =>
+        {
+            var rows = driver.FindElements(By.CssSelector("table tbody tr"));
+
+            return rows.Count > 0 ? rows : null;
+        });
+
+        flightRows.Count.Should().BeGreaterThanOrEqualTo(3);
+
+        foreach (var row in flightRows)
+        {
+            var rowCells = row.FindElements(By.TagName("td"));
+
+            var rowPrice = double.Parse(rowCells.Last().Text[1..]);
+            if (rowPrice < maxPrice)
+            {
+                var desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                var screenshotPath = Path.Combine(desktopPath, "yippee.png");
+
+                var screenshot = ((ITakesScreenshot)driver).GetScreenshot();
+                screenshot.SaveAsFile(screenshotPath);
+
+                break;
+            }
+        }
+    }
+
     private bool IsElementPresent(By by)
     {
         try
