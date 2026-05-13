@@ -108,26 +108,103 @@ public class PersonPageTests
         driver.FindElement(By.XPath("//*[@data-test='PersonPageNavigation']")).Click();
 
         var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException), typeof(NoSuchElementException));
 
-        var salaryLabelBefore = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
-        var salaryBeforeSubmission = double.Parse(salaryLabelBefore.Text);
+        //var salaryLabelBefore = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
+        //var salaryBeforeSubmission = double.Parse(salaryLabelBefore.Text);
+        var salaryBeforeSubmissionText = wait.Until(driver =>
+        {
+            var salaryLabelBefore = driver.FindElement(By.XPath("//*[@data-test='DisplayedSalary']"));
+            if (salaryLabelBefore.Displayed)
+            {
+                return salaryLabelBefore.Text;
+            }
+            return null;
+        });
 
+        var salaryBeforeSubmission = double.Parse(salaryBeforeSubmissionText);
         var expectedSalary = salaryBeforeSubmission + salaryBeforeSubmission * percentage / 100;
 
-        var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
-        input.Clear();
-        input.SendKeys(percentage.ToString());
+        //var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
+        //input.Clear();
+        //input.SendKeys(percentage.ToString());
+        wait.Until(driver =>
+        {
+            var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
+            if (input.Displayed && input.Enabled)
+            {
+                input.Clear();
+                input.SendKeys(percentage.ToString());
+                return true;
+            }
+            return false;
+        });
 
         // Act
-        var submitButton = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']")));
-        submitButton.Click();
-
+        //var submitButton = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']")));
+        //submitButton.Click();
+        wait.Until(ExpectedConditions.ElementToBeClickable(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']"))).Click();
 
         // Assert
-        var salaryLabel = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
-        var salaryAfterSubmission = double.Parse(salaryLabel.Text);
+        //var salaryLabel = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='DisplayedSalary']")));
+        //var salaryAfterSubmission = double.Parse(salaryLabel.Text);
+        var salaryAfterSubmissionText = wait.Until(driver =>
+        {
+            var salaryLabel = driver.FindElement(By.XPath("//*[@data-test='DisplayedSalary']"));
+            if (salaryLabel.Displayed)
+            {
+                return salaryLabel.Text;
+            }
+            return null;
+        });
+
+        var salaryAfterSubmission = double.Parse(salaryAfterSubmissionText);
         salaryAfterSubmission.Should().BeApproximately(expectedSalary, 0.001);
     }
+
+    [Test]
+    public void Person_SalaryIncrease_LessThanMinusTen_ShouldShowValidationErrors()
+    {
+        // Arrange
+        driver.Navigate().GoToUrl(BaseURL);
+        driver.FindElement(By.XPath("//*[@data-test='PersonPageNavigation']")).Click();
+
+        var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException), typeof(NoSuchElementException));
+
+        wait.Until(driver =>
+        {
+            var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
+            if (input.Displayed && input.Enabled)
+            {
+                input.Clear();
+                input.SendKeys("-15");
+                return true;
+            }
+            return false;
+        });
+
+        // Act
+        wait.Until(ExpectedConditions.ElementToBeClickable(By.XPath("//*[@data-test='SalaryIncreaseSubmitButton']"))).Click();
+
+        // Assert
+        var errorTop = wait.Until(driver =>
+        {
+            var element = driver.FindElement(By.CssSelector("ul.validation-errors li.validation-message"));
+
+            return element.Displayed;
+        });
+        var errorUnder = wait.Until(driver =>
+        {
+            var element = driver.FindElement(By.CssSelector("div.validation-message"));
+
+            return element.Displayed;
+        });
+
+        errorTop.Should().BeTrue();
+        errorUnder.Should().BeTrue();
+    }
+
     private bool IsElementPresent(By by)
     {
         try
