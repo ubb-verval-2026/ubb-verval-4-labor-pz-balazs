@@ -162,8 +162,10 @@ public class PersonPageTests
         salaryAfterSubmission.Should().BeApproximately(expectedSalary, 0.001);
     }
 
-    [Test]
-    public void Person_SalaryIncrease_LessThanMinusTen_ShouldShowValidationErrors()
+    [TestCase(-10)]
+    [TestCase(-15)]
+    [TestCase(-50)]
+    public void Person_SalaryIncrease_LessThanMinusTen_ShouldShowValidationErrors(double percentage)
     {
         // Arrange
         driver.Navigate().GoToUrl(BaseURL);
@@ -178,7 +180,7 @@ public class PersonPageTests
             if (input.Displayed && input.Enabled)
             {
                 input.Clear();
-                input.SendKeys("-15");
+                input.SendKeys(percentage.ToString());
                 return true;
             }
             return false;
