@@ -8,6 +8,10 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
 
+using System.Globalization;
+using System.IO;
+using System.Linq;
+
 namespace DatesAndStuff.Web.Tests;
 
 [TestFixture]
@@ -176,7 +180,7 @@ public class PersonPageTests
 
         wait.Until(driver =>
         {
-            var input = wait.Until(ExpectedConditions.ElementExists(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']")));
+            var input = driver.FindElement(By.XPath("//*[@data-test='SalaryIncreasePercentageInput']"));
             if (input.Displayed && input.Enabled)
             {
                 input.Clear();
@@ -205,6 +209,45 @@ public class PersonPageTests
 
         errorTop.Should().BeTrue();
         errorUnder.Should().BeTrue();
+    }
+
+    [Test]
+    public void BlazeDemo_MexicoToDublin_ShouldHaveAtLeastThreeFlights()
+    {
+        // Arrange
+        double maxPrice = 230d;
+
+        driver.Navigate().GoToUrl("https://blazedemo.com");
+
+        var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(5));
+        wait.IgnoreExceptionTypes(typeof(StaleElementReferenceException), typeof(NoSuchElementException));
+
+        wait.Until(driver =>
+        {
+            var selectFrom = driver.FindElement(By.Name("fromPort"));
+            var selectTo = driver.FindElement(By.Name("toPort"));
+
+            if (selectFrom.Displayed && selectFrom.Enabled && selectTo.Displayed && selectTo.Enabled)
+            {
+                selectFrom.SendKeys("Mexico City");
+                selectTo.SendKeys("Dublin");
+                return true;
+            }
+            return false;
+        });
+
+        // Act
+        wait.Until(ExpectedConditions.ElementToBeClickable(By.CssSelector("input[type='submit']"))).Click();
+
+        // Assert
+        var flightRows = wait.Until(driver =>
+        {
+            var rows = driver.FindElements(By.CssSelector("table tbody tr"));
+
+            return rows.Count > 0 ? rows : null;
+        });
+
+        flightRows.Count.Should().BeGreaterThanOrEqualTo(3);
     }
 
     private bool IsElementPresent(By by)
